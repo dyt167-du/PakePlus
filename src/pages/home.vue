@@ -477,8 +477,8 @@ const showBranchDialog = () => {
     } else {
         getMainSha('PakePlus')
         getWebSha('PakePlus')
-        // getMainSha('PakePlus-iOS')
-        // getWebSha('PakePlus-iOS')
+        getMainSha('PakePlus-iOS')
+        getWebSha('PakePlus-iOS')
         getMainSha('PakePlus-Android')
         getWebSha('PakePlus-Android')
     }
@@ -508,10 +508,16 @@ const testToken = async (tips: boolean = true) => {
             if (res.status === 200) {
                 localStorage.setItem('token', store.token)
                 store.setUser(res.data)
-                if (res.data.login !== 'Sjj1024') {
-                    await forkStartShas(tips)
-                } else {
-                    await commitShas(tips)
+                try {
+                    if (res.data.login !== 'Sjj1024') {
+                        await forkStartShas(tips)
+                    } else {
+                        await commitShas(tips)
+                    }
+                } catch (error) {
+                    oneMessage.error(t('tokenError'))
+                    localStorage.clear()
+                    store.setUser({ login: '' })
                 }
             } else {
                 localStorage.clear()
@@ -605,15 +611,12 @@ const commitShas = async (tips: boolean = true) => {
 // fork and start
 const forkStartShas = async (tips: boolean = true) => {
     // fork action is async
-    const forkRes: any = Promise.all([
+    const forkRes: any = await Promise.all([
         forkPakePlus('PakePlus'),
         forkPakePlus('PakePlus-iOS'),
         forkPakePlus('PakePlus-Android'),
-    ]).then((res) => {
-        console.log('forkRes', res)
-        return res.every((item) => item)
-    })
-    if (forkRes) {
+    ])
+    if (forkRes.every((item: any) => item)) {
         console.log('forkRes', forkRes)
     } else {
         console.error('fork error', forkRes)
@@ -634,7 +637,7 @@ const forkPakePlus = async (repo: string = 'PakePlus') => {
     if (forkRes.status === 202) {
         console.log('forkPakePlus', forkRes)
         return true
-    } else if (forkRes.status === 403) {
+    } else if (forkRes.status === 403 || forkRes.status === 404) {
         // maybe account has locked
         store.setUser({ login: '' })
         testLoading.value = false

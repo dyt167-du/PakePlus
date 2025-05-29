@@ -518,8 +518,33 @@
                 </div>
                 <!-- 支付测试 -->
                 <div v-else-if="menuIndex === '3-14'" class="cardContent">
-                    <el-button @click="getPayCode"> 获取支付二维码 </el-button>
-                    <img :src="payCode" alt="QR Code" />
+                    <el-button @click="getPayCode('weixin')">
+                        微信支付
+                    </el-button>
+                    <el-button @click="getPayCode('alipay')">
+                        支付宝支付
+                    </el-button>
+                    <div v-if="qrCodeData" class="qrCodeBox">
+                        <img
+                            :src="qrCodeData"
+                            alt="支付二维码"
+                            class="qrCode"
+                        />
+                        <!-- logo -->
+                        <!-- <img :src="ppIcon" alt="logo" class="qrlogo" /> -->
+                        <!-- wx or alipay -->
+                        <div class="qrlogo">
+                            <span
+                                v-if="payType === 'weixin'"
+                                class="iconfont weixin qrlogo"
+                            >
+                                &#xe64b;
+                            </span>
+                            <span v-else class="iconfont zhifubao qrlogo">
+                                &#xe654;
+                            </span>
+                        </div>
+                    </div>
                 </div>
                 <!-- 待开发 -->
                 <div v-else class="waitContent">
@@ -616,6 +641,7 @@ import { Window } from '@tauri-apps/api/window'
 import { useI18n } from 'vue-i18n'
 import payApi from '@/apis/pay'
 import { fetch } from '@tauri-apps/plugin-http'
+import QRCode from 'qrcode'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -623,7 +649,7 @@ const router = useRouter()
 const textarea = ref('')
 const image = ref()
 const defaultMenu = ref('1-1')
-const menuIndex = ref('1-1')
+const menuIndex = ref('3-14')
 
 const handleMenu = (index: string) => {
     console.log('handleMenu', index)
@@ -635,7 +661,6 @@ const goBack = () => {
 }
 
 // defaultWindowIcon
-
 const defaultWindowIconApi = async () => {
     const icon = await defaultWindowIcon()
     if (!icon) return
@@ -723,41 +748,46 @@ const openWindow = async () => {
     console.log('window')
 }
 
-const payCode = ref('')
-
+const qrCodeData = ref('')
+const payType = ref('')
 // get pay code
-const getPayCode = async () => {
-    let data: any = {
-        body: 'payjs收款测试',
-        out_trade_no: '1699601458',
-        total_fee: '10',
-        mchid: import.meta.env.VITE_PAY_MCHID,
+const getPayCode = async (payMathod: string = 'weixin') => {
+    // 请输入支付金额(单位:元)
+    payType.value = payMathod
+    let money = 10
+    try {
+        money = parseInt(textarea.value)
+        if (isNaN(money)) {
+            oneMessage.error('请输入正确的支付金额')
+            return
+        }
+    } catch (error) {
+        oneMessage.error('请输入正确的支付金额')
+        return
     }
-    const sign = getPaySign(data)
-    data.sign = sign
-    console.log('data sign', data)
-    // const res = await payApi.getPayCode(data)
-    // console.log('pay res', res)
+    const order: any = {
+        mchid: import.meta.env.VITE_PAY_MCHID,
+        body: '支付测试订单',
+        total_fee: money,
+        out_trade_no: 'payjs_jspay_demo_2323923',
+        auto: 1,
+        hide: 1,
+        type: payMathod === 'weixin' ? null : 'alipay',
+    }
+    order.sign = getPaySign(order)
+    console.log('order----', order)
+    const queryString = Object.keys(order)
+        .map(
+            (key) =>
+                `${encodeURIComponent(key)}=${encodeURIComponent(order[key])}`
+        )
+        .join('&')
+    const payUrl = 'https://payjs.cn/api/cashier?' + queryString
+    console.log('payUrl', payUrl)
 
-    // const res = await payApi.getPayCode(data)
-    // console.log('pay res', res)
-
-    const myHeaders = new Headers()
-    myHeaders.append('content-type', 'application/x-www-form-urlencoded')
-
-    const urlencoded = new URLSearchParams()
-    urlencoded.append('body', 'payjs收款测试')
-    urlencoded.append('out_trade_no', '1699601458')
-    urlencoded.append('total_fee', '10')
-    urlencoded.append('mchid', '1593541201')
-    urlencoded.append('sign', 'F6987C896F199229D40D0DE521427F5D')
-
-    const res = await fetch('https://api.github.com/user/repos', {
-        method: 'POST',
-        headers: myHeaders,
-        body: urlencoded,
-    })
-    console.log('res---', res.json())
+    const url = await QRCode.toDataURL(payUrl)
+    console.log('url', url)
+    qrCodeData.value = url
 }
 
 // 页面初始化
@@ -881,6 +911,49 @@ onMounted(() => {
             .el-button {
                 margin: 0;
             }
+        }
+
+        .qrCodeBox {
+            margin-top: 10px;
+            width: 200px;
+            height: 200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+
+            .qrlogo {
+                width: 28px;
+                height: 28px;
+                position: absolute;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                right: 0;
+                margin: auto;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+
+            .zhifubao {
+                font-size: 30px;
+                color: #009fe8;
+                position: absolute;
+                background-color: #fff;
+            }
+
+            .weixin {
+                font-size: 30px;
+                color: #3daf34;
+                position: absolute;
+                background-color: #fff;
+            }
+        }
+
+        .qrCode {
+            width: 200px;
+            height: 200px;
         }
     }
 }
